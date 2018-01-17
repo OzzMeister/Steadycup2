@@ -1,0 +1,124 @@
+#include <SPI.h>
+#include <Wire.h>
+#include <Servo.h>
+#define MPU 0x68  
+ 
+Servo ServoX, ServoY;
+double AcX,AcY,AcZ;
+double Pitch, Roll;
+
+int Led_Red  = 9;
+int Led_Green = 10;
+int Led_Blue = 11;
+
+int Touch_Pin = 3;
+
+int periode = 2000;
+int displace = 500;
+
+int analog = analogRead(A0);
+double voltage;
+
+//------------------------------------------------------  Toggle knoppie
+int state = HIGH;
+int previous = LOW;
+long debounce = 50;
+long time = 0;
+//-----------------------------------------------------
+
+
+void init_MPU(){
+  Wire.begin();
+  Wire.beginTransmission(MPU);
+  Wire.write(0x6B); 
+  Wire.write(0);     
+  Wire.endTransmission(true);
+  delay(1000);
+}
+ 
+double FunctionsPitchRoll(double A, double B, double C){
+  double DatoA, DatoB, Value;
+  DatoA = A;
+  DatoB = (B*B) + (C*C);
+  DatoB = sqrt(DatoB);
+  
+  Value = atan2(DatoA, DatoB);
+  Value = Value * (360/3.14);
+  
+  return (double)Value;
+}
+
+void FunctionsMPU(){
+  Wire.beginTransmission(MPU);
+  Wire.write(0x3B);  
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU,6,true);  
+  AcX=Wire.read()<<8|Wire.read();     
+  AcY=Wire.read()<<8|Wire.read(); 
+  AcZ=Wire.read()<<8|Wire.read(); 
+}
+ 
+void setup(){
+  ServoX.attach(5, 700, 2200);
+  ServoY.attach(6, 700, 2200);
+  init_MPU(); 
+  pinMode(Led_Red, OUTPUT);
+  pinMode(Led_Green, OUTPUT);
+  pinMode(Led_Blue, OUTPUT);
+  pinMode(Touch_Pin, INPUT);
+
+ digitalWrite(Led_Red, HIGH);
+  digitalWrite(Led_Green, HIGH);
+  digitalWrite(Led_Blue, LOW);
+  delay(300);
+  digitalWrite(Led_Blue, HIGH);
+  delay(300);
+  digitalWrite(Led_Blue, LOW);
+  delay(200);
+  digitalWrite(Led_Blue, HIGH);
+
+  Serial.begin(9600);
+
+}
+
+void loop()
+{
+
+  int Touch = digitalRead(Touch_Pin);
+
+if (Touch == HIGH && previous == LOW && millis() - time > debounce) {
+       if (state == HIGH)
+          state = LOW;
+       else
+          state = HIGH;     
+       time = millis();  
+  }
+  
+  previous = Touch;
+
+  
+  if(state == !HIGH){
+     FunctionsMPU(); 
+    
+     Roll = FunctionsPitchRoll(AcX, AcY, AcZ);   
+     Pitch = FunctionsPitchRoll(AcY, AcX, AcZ);  
+
+     voltage = analog* (5/1023);
+ 
+     double ServoRoll = map((1.5*Roll), 90, -90, 0, 179);
+     double ServoPitch = map((1.5*Pitch), 90, -90, 179, 0);
+ 
+     ServoX.write(ServoRoll);
+     ServoY.write(ServoPitch);
+
+     Serial.print("voltage "); Serial.print(voltage);
+     Serial.print("\t");
+ 
+      //delay(5);
+     }
+
+    else
+    {
+    digitalWrite(Led_Red, HIGH);
+    }
+}
